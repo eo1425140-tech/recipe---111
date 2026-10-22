@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 레시피 생성기 - 원하는 메뉴만 말해보세요!</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Font (Noto Sans KR) -->
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            background-color: #fffaf5;
+        }
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #fff0e6;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #ffb380;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #ff9955;
+        }
+        .tab-active {
+            border-bottom: 3px solid #f97316;
+            color: #f97316;
+            font-weight: 700;
+        }
+    </style>
+</head>
+<body class="text-slate-800 min-h-screen flex flex-col pb-12">
+
+    <!-- Header Section -->
+    <header class="bg-amber-500 text-white shadow-lg sticky top-0 z-50">
+        <div class="max-w-4xl mx-auto px-4 py-4 flex flex-col sm:flex-row justify-between items-center gap-3">
+            <div class="flex items-center space-x-3 cursor-pointer" onclick="switchTab('generator')">
+                <div class="w-10 h-10 bg-white text-orange-500 rounded-full flex items-center justify-center font-bold text-xl shadow-inner">
+                    <i class="fa-solid font-2xl fa-utensils"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl sm:text-2xl font-black tracking-tight leading-none">AI 레시피 생성기</h1>
+                    <p class="text-xs text-amber-100 mt-1">원하는 메뉴나 남은 재료만 입력하면 완성!</p>
+                </div>
+            </div>
+            <!-- Navigation Tabs -->
+            <div class="flex space-x-2 bg-amber-600/40 p-1 rounded-xl text-sm font-medium">
+                <button id="tab-gen-btn" onclick="switchTab('generator')" class="px-4 py-1.5 rounded-lg transition-all bg-white text-orange-600 font-bold shadow-sm">
+                    <i class="fa-solid fa-wand-magic-sparkles mr-1"></i> 레시피 생성
+                </button>
+                <button id="tab-save-btn" onclick="switchTab('saved')" class="px-4 py-1.5 rounded-lg transition-all text-amber-100 hover:text-white flex items-center">
+                    <i class="fa-solid fa-bookmark mr-1"></i> 내 저장함
+                    <span id="saved-count-badge" class="ml-1.5 bg-orange-700 text-white text-xs px-2 py-0.5 rounded-full font-bold">0</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="max-w-4xl mx-auto w-full px-4 pt-6 flex-grow">
+
+        <!-- TAB 1: 레시피 생성기 View -->
+        <section id="view-generator" class="space-y-6">
+
+            <!-- Search & Filter Card -->
+            <div class="bg-white rounded-2xl p-5 sm:p-6 shadow-md border border-orange-100 relative overflow-hidden">
+                <div class="absolute -right-6 -bottom-6 text-orange-50 opacity-40 pointer-events-none">
+                    <i class="fa-solid fa-kitchen-set text-9xl"></i>
+                </div>
+
+                <form id="recipe-form" onsubmit="handleGenerateRecipe(event)" class="relative z-10 space-y-5">
+                    <!-- Input field -->
+                    <div>
+                        <label for="menu-input" class="block text-sm font-bold text-slate-700 mb-2">
+                            <i class="fa-solid fa-magnifying-glass text-orange-500 mr-1"></i> 요리 이름 또는 보유 재료
+                        </label>
+                        <div class="flex gap-2">
+                            <input type="text" id="menu-input" placeholder="예: 김치찌개, 파스타, 또는 계란 대파 스팸" 
+                                class="w-full px-4 py-3 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent text-slate-800 placeholder-slate-400 shadow-sm" required>
+                            <button type="button" onclick="setQuickInput('김치찌개')" class="hidden sm:inline-block px-3 py-2 text-xs bg-orange-50 text-orange-600 rounded-lg hover:bg-orange-100 transition border border-orange-200">
+                                #김치찌개
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Filter Options -->
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2 border-t border-slate-100">
+                        <!-- Difficulty Filter -->
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-500 mb-1.5"><i class="fa-solid fa-gauge-high text-amber-500 mr-1"></i> 난이도 선택</label>
+                            <select id="filter-difficulty" class="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-1 focus:ring-orange-500 bg-slate-50">
+                                <option value="전체">전체 (모두 가능)</option>
+                                <option value="초급">초급 (쉬운 조리)</option>
+                                <option value="중급">중급 (보통)</option>
+                                <option value="상급">상급 (고난도)</option>
+                            </select>
+                        </div>
+
+                        <!-- Cooking Time Filter -->
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-500 mb-1.5"><i class="fa-regular fa-clock text-amber-500 mr-1"></i> 최대 조리 시간</label>
+                            <select id="filter-time" class="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-1 focus:ring-orange-500 bg-slate-50">
+                                <option value="상관없음">제한 없음</option>
+                                <option value="15분 이내">15분 이내 (스피드)</option>
+                                <option value="30분 이내">30분 이내 (적당함)</option>
+                                <option value="60분 이내">60분 이내 (정성 가득)</option>
+                            </select>
+                        </div>
+
+                        <!-- Spicy Level -->
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-500 mb-1.5"><i class="fa-solid fa-pepper-hot text-red-500 mr-1"></i> 맵기 정도</label>
+                            <select id="filter-spicy" class="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:ring-1 focus:ring-orange-500 bg-slate-50">
+                                <option value="안 매움">안 매움 (순한맛)</option>
+                                <option value="약간 매콤">약간 매콤 (★☆☆)</option>
+                                <option value="중간 매운맛" selected>중간 매운맛 (★★☆)</option>
+                                <option value="화끈한 매운맛">화끈한 매운맛 (★★★)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Popular Fast Tags -->
+                    <div class="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                        <span class="font-semibold"><i class="fa-solid fa-fire text-orange-500"></i> 인기 추천:</span>
+                        <button type="button" onclick="setQuickInput('김치찌개')" class="bg-slate-100 hover:bg-orange-100 hover:text-orange-600 px-2.5 py-1 rounded-full transition">김치찌개</button>
+                        <button type="button" onclick="setQuickInput('파스타')" class="bg-slate-100 hover:bg-orange-100 hover:text-orange-600 px-2.5 py-1 rounded-full transition">파스타</button>
+                        <button type="button" onclick="setQuickInput('떡볶이')" class="bg-slate-100 hover:bg-orange-100 hover:text-orange-600 px-2.5 py-1 rounded-full transition">떡볶이</button>
+                        <button type="button" onclick="setQuickInput('계란볶음밥')" class="bg-slate-100 hover:bg-orange-100 hover:text-orange-600 px-2.5 py-1 rounded-full transition">계란볶음밥</button>
+                        <button type="button" onclick="setQuickInput('제육볶음')" class="bg-slate-100 hover:bg-orange-100 hover:text-orange-600 px-2.5 py-1 rounded-full transition">제육볶음</button>
+                    </div>
+
+                    <!-- Submit Button -->
+                    <button type="submit" id="submit-btn" class="w-full py-3.5 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-bold rounded-xl shadow-lg shadow-orange-500/20 active:scale-[0.99] transition flex items-center justify-center space-x-2">
+                        <i class="fa-solid fa-wand-magic-sparkles"></i>
+                        <span>맞춤 AI 레시피 생성하기</span>
+                    </button>
+                </form>
+            </div>
+
+            <!-- Loading Spinner (Hidden by default) -->
+            <div id="loading-spinner" class="hidden bg-white rounded-2xl p-10 text-center shadow-md border border-orange-100">
+                <div class="inline-block animate-spin rounded-full h-12 w-12 border-4 border-orange-500 border-t-transparent mb-4"></div>
+                <p class="text-slate-700 font-bold text-lg">AI가 최적의 레시피를 조합하고 있습니다...</p>
+                <p class="text-slate-400 text-sm mt-1">난이도, 조리시간, 정량 재료 정보를 정제 중입니다.</p>
+            </div>
+
+            <!-- Result Display Box (Hidden by default) -->
+            <div id="recipe-result-container" class="hidden space-y-6">
+                <div class="bg-white rounded-2xl shadow-lg border border-orange-100 overflow-hidden">
+                    <!-- Result Header Banner -->
+                    <div class="bg-gradient-to-r from-orange-500 to-amber-500 p-6 text-white relative">
+                        <div class="flex justify-between items-start gap-4">
+                            <div>
+                                <span id="res-badge-condition" class="bg-white/20 backdrop-blur-md text-amber-100 text-xs px-3 py-1 rounded-full font-medium inline-block mb-2">
+                                    선택한 조건: 중간 매운맛
+                                </span>
+                                <h2 id="res-title" class="text-2xl sm:text-3xl font-black">매콤 칼칼 김치찌개</h2>
+                                <p id="res-description" class="text-amber-100 text-sm mt-1">깊은 맛의 육수와 잘 익은 김치가 어우러진 한국인의 영혼 음식입니다.</p>
+                            </div>
+                            <!-- Bookmark Button -->
+                            <button id="save-btn" onclick="saveCurrentRecipe()" class="bg-white text-orange-600 hover:bg-orange-50 px-4 py-2.5 rounded-xl font-bold shadow-md transition flex items-center shrink-0">
+                                <i class="fa-regular fa-bookmark mr-1.5"></i> 레시피 저장
+                            </button>
+                        </div>
+
+                        <!-- Stats Bar -->
+                        <div class="grid grid-cols-3 gap-2 mt-6 bg-black/10 backdrop-blur-md rounded-xl p-3 text-center text-xs sm:text-sm">
+                            <div>
+                                <p class="text-amber-200">조리 시간</p>
+                                <p id="res-time" class="font-bold text-white text-base">20분</p>
+                            </div>
+                            <div class="border-x border-white/10">
+                                <p class="text-amber-200">난이도</p>
+                                <p id="res-difficulty" class="font-bold text-white text-base">초급 ★☆☆</p>
+                            </div>
+                            <div>
+                                <p class="text-amber-200">기준 분량</p>
+                                <p id="res-servings" class="font-bold text-white text-base">2인분</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Content Body -->
+                    <div class="p-6 space-y-6">
+                        <!-- Auto-calculated Badge Info -->
+                        <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start space-x-3">
+                            <i class="fa-solid fa-calculator text-amber-600 text-lg mt-0.5"></i>
+                            <div>
+                                <h4 class="font-bold text-amber-900 text-sm">스마트 난이도 & 조리시간 자동 계산 분석</h4>
+                                <p id="res-calc-reason" class="text-xs text-amber-800 mt-0.5">입력된 필요 재료 5가지와 총 4단계 조리법을 분석하여 산출된 난이도입니다.</p>
+                            </div>
+                        </div>
+
+                        <!-- Required Ingredients Checklist -->
+                        <div>
+                            <div class="flex justify-between items-center mb-3">
+                                <h3 class="font-bold text-lg text-slate-800 flex items-center">
+                                    <i class="fa-solid fa-basket-shopping text-orange-500 mr-2"></i> 필요 재료 (장보기 체크리스트)
+                                </h3>
+                                <span class="text-xs text-slate-400">클릭하여 준비된 재료 지우기</span>
+                            </div>
+                            <ul id="res-ingredients" class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                <!-- Dynamic dynamic insertion -->
+                            </ul>
+                        </div>
+
+                        <!-- Step-by-Step Instructions -->
+                        <div>
+                            <h3 class="font-bold text-lg text-slate-800 mb-3 flex items-center">
+                                <i class="fa-solid fa-list-check text-orange-500 mr-2"></i> 단계별 조리 순서
+                            </h3>
+                            <div id="res-steps" class="space-y-3">
+                                <!-- Dynamic dynamic insertion -->
+                            </div>
+                        </div>
+
+                        <!-- AI Tip Box -->
+                        <div class="bg-orange-50 border-l-4 border-orange-500 p-4 rounded-r-xl">
+                            <h4 class="font-bold text-orange-900 text-sm flex items-center">
+                                <i class="fa-solid fa-lightbulb text-orange-500 mr-2"></i> AI 요리사의 맛있는 팁
+                            </h4>
+                            <p id="res-tip" class="text-sm text-orange-800 mt-1">김치를 먼저 참기름에 달달 볶아주면 국물 맛이 훨씬 깊어집니다.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </section>
+
+        <!-- TAB 2: 내 저장함 View (Hidden initially) -->
+        <section id="view-saved" class="hidden space-y-4">
+            <div class="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm border border-slate-100">
+                <div>
+                    <h2 class="text-xl font-bold text-slate-800">내가 저장한 레시피</h2>
+                    <p class="text-xs text-slate-500">언제든지 다시 열어보고 요리해보세요.</p>
+                </div>
+                <button onclick="clearAllSavedRecipes()" class="text-xs text-red-500 hover:text-red-700 underline">
+                    전체 삭제
+                </button>
+            </div>
+
+            <!-- List Container -->
+            <div id="saved-recipes-list" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <!-- Dynamically Populated -->
+            </div>
+
+            <!-- Empty State -->
+            <div id="saved-empty-state" class="hidden bg-white rounded-2xl p-12 text-center border border-dashed border-slate-200">
+                <i class="fa-regular fa-bookmark text-5xl text-slate-300 mb-3"></i>
+                <p class="text-slate-600 font-bold">아직 저장된 레시피가 없습니다.</p>
+                <p class="text-slate-400 text-sm mt-1">마음에 드는 메뉴를 생성한 뒤 저장 버튼을 눌러보세요!</p>
+                <button onclick="switchTab('generator')" class="mt-4 px-4 py-2 bg-orange-500 text-white rounded-lg text-sm font-bold shadow hover:bg-orange-600 transition">
+                    레시피 생성하러 가기
+                </button>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Notification Toast Message -->
+    <div id="toast" class="fixed bottom-6 right-6 bg-slate-800 text-white px-5 py-3 rounded-xl shadow-2xl transition-opacity duration-300 opacity-0 pointer-events-none flex items-center space-x-2 z-50">
+        <i id="toast-icon" class="fa-solid fa-circle-check text-green-400"></i>
+        <span id="toast-msg" class="text-sm font-medium">메시지 내용</span>
+    </div>
+
+    <!-- JavaScript Logic -->
+    <script>
+        // --- 1. Mock Recipe Knowledge Base ---
+        const MOCK_DATABASE = {
+            "김치찌개": {
+                title: "푹 끓인 돼지고기 김치찌개",
+                description: "잘 익은 신김치와 고소한 돼지고기가 어우러진 깊고 진한 김치찌개입니다.",
+                time: "25분",
+                difficulty: "초급 ★☆☆",
+                servings: "2~3인분",
+                ingredients: ["잘 익은 신김치 2컵", "돼지고기 목살 또는 삼겹살 150g", "두부 1/2모", "대파 1/2대", "다진 마늘 1스푼", "고춧가루 1스푼", "참기름 1스푼", "물 또는 멸치육수 3컵"],
+                steps: [
+                    "냄비에 참기름 1스푼을 두르고 먹기 좋게 썬 돼지고기를 넣고 볶습니다.",
+                    "고기 겉면이 익으면 신김치를 넣고 함께 3분간 달달 볶아줍니다.",
+                    "물(또나 육수) 3컵과 고춧가루, 다진 마늘을 넣고 센 불에서 끓입니다.",
+                    "끓어오르면 중불로 줄여 10분 이상 푹 끓인 뒤, 두부와 대파를 넣고 3분 더 끓여 완성합니다."
+                ],
+                tip: "김치가 너무 신 편이라면 설탕 1/2스푼을 첨가하면 신맛을 부드럽게 잡아줍니다."
+            },
+            "파스타": {
+                title: "마늘 향 가득 알리오 올리오 파스타",
+                description: "마늘과 올리브 오일의 고소함이 일품인 대표 깔끔 파스타입니다.",
+                time: "15분",
+                difficulty: "초급 ★☆☆",
+                servings: "1인분",
+                ingredients: ["파스타 면 100g", "마늘 6~8알", "페페론치노(또는 청양고추) 2개", "올리브 오일 4스푼", "소금 적당량", "후춧가루 약간"],
+                steps: [
+                    "끓는 물에 소금 1스푼을 넣고 파스타 면을 8분간 삶아줍니다. (면수 1/2컵 남기기)",
+                    "마늘은 편으로 슬라이스하고 페페론치노는 다져줍니다.",
+                    "팬에 올리브 오일을 충분히 두르고 편마늘을 약불에서 노릇하게 볶아 향을 냅니다.",
+                    "삶은 면과 남겨둔 면수 3-4스푼, 페페론치노를 넣고 빠른 속도로 볶아 오일과 면수를 에멀전화(유화)시킵니다.",
+                    "소금과 후추로 간을 맞춘 후 접시에 담아냅니다."
+                ],
+                tip: "면수를 조금씩 넣어가며 자작하게 볶아주어야 오일과 면이 따로 놀지 않고 잘 감깁니다."
+            },
+            "떡볶이": {
+                title: "추억의 매콤달콤 국물 떡볶이",
+                description: "학교 앞 분식집에서 먹던 입에 착 붙는 매콤달콤한 국물 떡볶이입니다.",
+                time: "20분",
+                difficulty: "초급 ★☆☆",
+                servings: "2인분",
+                ingredients: ["떡볶이 떡 300g", "사각 어묵 2장", "대파 1대", "고추장 2스푼", "고춧가루 1.5스푼", "진간장 1스푼", "설탕 2스푼", "물 2.5컵"],
+                steps: [
+                    "떡은 찬물에 10분간 담가두고, 어묵과 대파는 먹기 좋은 크기로 썰어둡니다.",
+                    "냄비에 물 2.5컵과 고추장, 고춧가루, 진간장, 설탕을 풀고 끓입니다.",
+                    "국물이 끓어오르면 떡과 어묵을 넣고 중불에서 떡에 양념이 밸 때까지 끓입니다.",
+                    "국물이 자작해지면 대파를 넣고 1~2분간 더 자작하게 조려 완성합니다."
+                ],
+                tip: "삶은 계란이나 라면 사리를 함께 넣으면 훨씬 풍성한 맛을 즐기실 수 있습니다."
+            },
+            "계란볶음밥": {
+                title: "파향 가득 고소한 황금 계란볶음밥",
+                description: "초간단 재료로 5분 만에 만드는 파기름 풍미의 계란볶음밥입니다.",
+                time: "10분",
+                difficulty: "초급 ★☆☆",
+                servings: "1인분",
+                ingredients: ["밥 1공기", "계란 2개", "대파 1/2대", "굴소스(또는 간장) 1스푼", "식용유 2스푼", "참기름 약간"],
+                steps: [
+                    "대파는 얇게 쫑쫑 썰고 계란은 미리 그릇에 풀어놓습니다.",
+                    "달군 팬에 식용유를 두르고 대파를 볶아 파기름을 충분히 냅니다.",
+                    "파를 한쪽으로 밀어두고 계란물을 부어 스크램블 에그를 만듭니다.",
+                    "밥을 넣고 주걱으로 가르듯 볶아준 뒤 굴소스로 간을 하고 참기름을 둘러 마무리합니다."
+                ],
+                tip: "찬밥을 사용하면 밥알이 뭉치지 않고 꼬들꼬들하게 잘 볶아집니다."
+            },
+            "제육볶음": {
+                title: "매콤 불향 기사식당 제육볶음",
+                description: "감칠맛 넘치는 양념장과 야채가 잘 어우러진 최고의 반찬이자 안주입니다.",
+                time: "25분",
+                difficulty: "중급 ★★☆",
+                servings: "2~3인분",
+                ingredients: ["돼지고기 앞다리살 400g", "양파 1/2개", "대파 1대", "고추장 2스푼", "고춧가루 2스푼", "간장 2스푼", "설탕 1.5스푼", "다진 마늘 1스푼"],
+                steps: [
+                    "볼에 양념 재료(고추장, 고춧가루, 간장, 설탕, 다진마늘)를 섞어둡니다.",
+                    "고기에 양념을 조물조물 버무려 10분간 재워둡니다.",
+                    "달군 팬에 식용유를 살짝 두르고 재워둔 고기를 강불에서 볶습니다.",
+                    "고기가 80% 익으면 채 썬 양파와 대파를 넣고 센 불에서 강하게 볶아 불향을 입혀 완성합니다."
+                ],
+                tip: "센 불에서 빠르게 볶아내야 수분이 나오지 않고 맛있게 볶아집니다."
+            }
+        };
+
+        // Current Active Generated Recipe Holder
+        let currentRecipeData = null;
+
+        // --- 2. Tab Navigation Logic ---
+        function switchTab(tabName) {
+            const genView = document.getElementById('view-generator');
+            const savedView = document.getElementById('view-saved');
+            const genBtn = document.getElementById('tab-gen-btn');
+            const saveBtn = document.getElementById('tab-save-btn');
+
+            if (tabName === 'generator') {
+                genView.classList.remove('hidden');
+                savedView.classList.add('hidden');
+                genBtn.className = "px-4 py-1.5 rounded-lg transition-all bg-white text-orange-600 font-bold shadow-sm";
+                saveBtn.className = "px-4 py-1.5 rounded-lg transition-all text-amber-100 hover:text-white flex items-center";
+            } else {
+                genView.classList.add('hidden');
+                savedView.classList.remove('hidden');
+                saveBtn.className = "px-4 py-1.5 rounded-lg transition-all bg-white text-orange-600 font-bold shadow-sm flex items-center";
+                genBtn.className = "px-4 py-1.5 rounded-lg transition-all text-amber-100 hover:text-white";
+                renderSavedRecipes();
+            }
+        }
+
+        function setQuickInput(text) {
+            document.getElementById('menu-input').value = text;
+        }
+
+        // --- 3. Dynamic Recipe Generation Core Logic ---
+        function handleGenerateRecipe(e) {
+            e.preventDefault();
+            const menuInput = document.getElementById('menu-input').value.trim();
+            const diffFilter = document.getElementById('filter-difficulty').value;
+            const timeFilter = document.getElementById('filter-time').value;
+            const spicyFilter = document.getElementById('filter-spicy').value;
+
+            if (!menuInput) {
+                showToast("메뉴 이름을 입력해주세요!", "error");
+                return;
+            }
+
+            // Show Loading Indicator
+            document.getElementById('recipe-result-container').classList.add('hidden');
+            document.getElementById('loading-spinner').classList.remove('hidden');
+
+            setTimeout(() => {
+                // Generate recipe data (Mock DB match or dynamic generator fallback)
+                let recipe = generateAIResponse(menuInput, diffFilter, timeFilter, spicyFilter);
+                currentRecipeData = recipe;
+
+                // Render result
+                renderRecipeResult(recipe);
+
+                document.getElementById('loading-spinner').classList.add('hidden');
+                document.getElementById('recipe-result-container').classList.remove('hidden');
+                
+                // Scroll smoothly to result
+                document.getElementById('recipe-result-container').scrollIntoView({ behavior: 'smooth' });
+            }, 700);
+        }
+
+        // Dynamic AI Engine (Simulated Intelligent Parsing)
+        function generateAIResponse(input, diffFilter, timeFilter, spicyFilter) {
+            const cleanInput = input.replace(/\s+/g, '');
+            let baseRecipe = null;
+
+            // Check exact/partial match from database
+            for (let key in MOCK_DATABASE) {
+                if (cleanInput.includes(key) || key.includes(cleanInput)) {
+                    baseRecipe = JSON.parse(JSON.stringify(MOCK_DATABASE[key]));
+                    break;
+                }
+            }
+
+            // Fallback for custom menus or remaining ingredient inputs
+            if (!baseRecipe) {
+                baseRecipe = {
+                    title: `${input} 맞춤 특제 요리`,
+                    description: `입력해주신 [${input}] 재료를 활용하여 맛있고 손쉽게 조리할 수 있는 AI 추천 맞춤 요리입니다.`,
+                    time: timeFilter !== "상관없음" ? timeFilter : "20분",
+                    difficulty: diffFilter !== "전체" ? diffFilter : "초급 ★☆☆",
+                    servings: "2인분",
+                    ingredients: [
+                        `${input} (주재료)`,
+                        "양파 1/2개",
+                        "대파 1/2대",
+                        "다진 마늘 1스푼",
+                        "간장 1.5스푼",
+                        "참기름 1스푼",
+                        "소금/후추 약간"
+                    ],
+                    steps: [
+                        `주재료인 [${input}] 및 채소 재료들을 깨끗이 손질하여 먹기 좋은 크기로 다듬어줍니다.`,
+                        "달군 팬에 식용유를 두르고 다진 마늘과 대파를 넣어 먼저 향을 올려줍니다.",
+                        `준비한 [${input}]을(를) 넣고 강불에서 3~5분간 겉면이 노릇해질 때까지 볶아줍니다.`,
+                        "간장과 양념 재료를 넣어 골고루 섞이도록 조리한 뒤 참기름을 둘러 고소함을 더해줍니다."
+                    ],
+                    tip: "남은 재료의 특성에 맞게 조리 직전에 굴소스나 후춧가루를 더해주면 풍미가 더욱 깊어집니다."
+                };
+            }
+
+            // Filter Overrides
+            const searchConditionText = `선택한 조건: ${spicyFilter} | 시간: ${timeFilter}`;
+            baseRecipe.condition = searchConditionText;
+            baseRecipe.queryKey = input;
+
+            // Auto-calculated difficulty & reason
+            const ingCount = baseRecipe.ingredients.length;
+            const stepCount = baseRecipe.steps.length;
+            baseRecipe.calcReason = `입력 재료 ${ingCount}가지와 총 ${stepCount}단계 조리 순서를 종합 계산하여 최적 난이도(${baseRecipe.difficulty})로 측정되었습니다.`;
+
+            return baseRecipe;
+        }
+
+        // Render Generated Recipe on Screen
+        function renderRecipeResult(recipe) {
+            document.getElementById('res-title').innerText = recipe.title;
+            document.getElementById('res-description').innerText = recipe.description;
+            document.getElementById('res-condition').innerText = recipe.condition;
+            document.getElementById('res-time').innerText = recipe.time;
+            document.getElementById('res-difficulty').innerText = recipe.difficulty;
+            document.getElementById('res-servings').innerText = recipe.servings;
+            document.getElementById('res-calc-reason').innerText = recipe.calcReason;
+            document.getElementById('res-tip').innerText = recipe.tip;
+
+            // Render Ingredients Checklist
+            const ingUl = document.getElementById('res-ingredients');
+            ingUl.innerHTML = '';
+            recipe.ingredients.forEach((ing, idx) => {
+                const li = document.createElement('li');
+                li.className = "flex items-center space-x-2 bg-slate-50 p-2.5 rounded-lg border border-slate-200 hover:bg-orange-50/50 transition cursor-pointer select-none";
+                li.innerHTML = `
+                    <input type="checkbox" id="ing-${idx}" class="w-4 h-4 text-orange-500 rounded focus:ring-orange-400 cursor-pointer">
+                    <label for="ing-${idx}" class="text-sm font-medium text-slate-700 cursor-pointer flex-grow">${ing}</label>
+                `;
+                ingUl.appendChild(li);
+            });
+
+            // Render Steps
+            const stepsDiv = document.getElementById('res-steps');
+            stepsDiv.innerHTML = '';
+            recipe.steps.forEach((step, idx) => {
+                const stepCard = document.createElement('div');
+                stepCard.className = "flex space-x-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200/80 items-start";
+                stepCard.innerHTML = `
+                    <span class="w-6 h-6 rounded-full bg-orange-500 text-white font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">
+                        ${idx + 1}
+                    </span>
+                    <p class="text-sm text-slate-700 leading-relaxed font-medium">${step}</p>
+                `;
+                stepsDiv.appendChild(stepCard);
+            });
+        }
+
+        // --- 4. LocalStorage Saving & Bookmark System ---
+        function getSavedRecipes() {
+            return JSON.parse(localStorage.getItem('ai_recipes_saved') || '[]');
+        }
+
+        function updateSavedBadge() {
+            const list = getSavedRecipes();
+            document.getElementById('saved-count-badge').innerText = list.length;
+        }
+
+        function saveCurrentRecipe() {
+            if (!currentRecipeData) return;
+
+            let savedList = getSavedRecipes();
+            // Duplicate check
+            const isExist = savedList.some(item => item.title === currentRecipeData.title);
+
+            if (isExist) {
+                showToast("이미 내 저장함에 있는 레시피입니다.", "info");
+                return;
+            }
+
+            const itemToSave = {
+                ...currentRecipeData,
+                savedAt: new Date().toLocaleDateString('ko-KR')
+            };
+
+            savedList.push(itemToSave);
+            localStorage.setItem('ai_recipes_saved', JSON.stringify(savedList));
+            updateSavedBadge();
+            showToast("내 저장함에 레시피가 안심 저장되었습니다!", "success");
+        }
+
+        function renderSavedRecipes() {
+            const container = document.getElementById('saved-recipes-list');
+            const emptyState = document.getElementById('saved-empty-state');
+            const savedList = getSavedRecipes();
+
+            container.innerHTML = '';
+
+            if (savedList.length === 0) {
+                emptyState.classList.remove('hidden');
+                return;
+            } else {
+                emptyState.classList.add('hidden');
+            }
+
+            savedList.forEach((recipe, index) => {
+                const card = document.createElement('div');
+                card.className = "bg-white rounded-2xl p-5 shadow-sm border border-slate-200 flex flex-col justify-between hover:shadow-md transition";
+                card.innerHTML = `
+                    <div>
+                        <div class="flex justify-between items-start mb-2">
+                            <span class="bg-orange-100 text-orange-700 text-xs px-2.5 py-1 rounded-full font-bold">
+                                ${recipe.time} | ${recipe.difficulty}
+                            </span>
+                            <button onclick="deleteSavedRecipe(${index})" class="text-slate-400 hover:text-red-500 p-1">
+                                <i class="fa-solid fa-trash-can"></i>
+                            </button>
+                        </div>
+                        <h3 class="font-bold text-lg text-slate-800 mb-1">${recipe.title}</h3>
+                        <p class="text-xs text-slate-500 mb-3">${recipe.description}</p>
+                        <div class="text-xs text-slate-400 bg-slate-50 p-2 rounded-lg mb-3">
+                            <i class="fa-solid fa-circle-info mr-1"></i> ${recipe.condition || '검색 조건 기록됨'}
+                        </div>
+                    </div>
+                    <button onclick='loadSavedRecipeToView(${JSON.stringify(recipe).replace(/'/g, "&apos;")})' class="w-full py-2 bg-orange-50 text-orange-600 hover:bg-orange-100 font-bold text-xs rounded-lg transition border border-orange-200">
+                        상세 레시피 보기
+                    </button>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        function deleteSavedRecipe(index) {
+            let savedList = getSavedRecipes();
+            savedList.splice(index, 1);
+            localStorage.setItem('ai_recipes_saved', JSON.stringify(savedList));
+            updateSavedBadge();
+            renderSavedRecipes();
+            showToast("레시피가 삭제되었습니다.", "info");
+        }
+
+        function clearAllSavedRecipes() {
+            if (confirm("저장된 모든 레시피를 삭제하시겠습니까?")) {
+                localStorage.removeItem('ai_recipes_saved');
+                updateSavedBadge();
+                renderSavedRecipes();
+                showToast("전체 저장함이 비워졌습니다.", "info");
+            }
+        }
+
+        function loadSavedRecipeToView(recipe) {
+            currentRecipeData = recipe;
+            switchTab('generator');
+            renderRecipeResult(recipe);
+            document.getElementById('loading-spinner').classList.add('hidden');
+            document.getElementById('recipe-result-container').classList.remove('hidden');
+            document.getElementById('recipe-result-container').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        // --- 5. Helper Utilities ---
+        function showToast(message, type = "success") {
+            const toast = document.getElementById('toast');
+            const toastMsg = document.getElementById('toast-msg');
+            const toastIcon = document.getElementById('toast-icon');
+
+            toastMsg.innerText = message;
+            if (type === "success") {
+                toastIcon.className = "fa-solid fa-circle-check text-green-400";
+            } else if (type === "info") {
+                toastIcon.className = "fa-solid fa-circle-info text-blue-400";
+            } else {
+                toastIcon.className = "fa-solid fa-circle-exclamation text-red-400";
+            }
+
+            toast.classList.remove('opacity-0', 'pointer-events-none');
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'pointer-events-none');
+            }, 2500);
+        }
+
+        // Initialize Application
+        window.onload = function() {
+            updateSavedBadge();
+        };
+    </script>
+</body>
+</html>
